@@ -1,0 +1,22 @@
+# Dependencies
+bin/
+obj/
+packages/
+
+# IDEs
+.vscode/
+.idea/
+*.sln.DotSettings.user
+*.suo
+*.user
+
+# Environment Variables
+.env
+appsettings.Development.json
+appsettings.local.json
+
+# Build Output
+wwwroot/songs/
+
+# Docker
+.dockerignore

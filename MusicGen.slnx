@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="MusicGen.Api/MusicGen.Api.csproj" />
+  <Project Path="MusicGen.Core/MusicGen.Core.csproj" />
+</Solution>
