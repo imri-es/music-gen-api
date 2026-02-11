@@ -16,7 +16,7 @@ appsettings.Development.json
 appsettings.local.json
 
 # Build Output
-wwwroot/songs/
+MusicGen.Api/wwwroot/songs/
 
 # Docker
 .dockerignore

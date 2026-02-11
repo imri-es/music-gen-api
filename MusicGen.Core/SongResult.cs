@@ -10,4 +10,11 @@ public class SongResult
     public string FinalMixPath { get; set; }
     public string ImagePath { get; set; }
     public string ImageUrl { get; set; }
+    public List<LyricLine> Lyrics { get; set; }
+}
+
+public class LyricLine
+{
+    public double Time { get; set; }
+    public string Text { get; set; }
 }

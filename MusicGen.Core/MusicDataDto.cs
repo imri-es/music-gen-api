@@ -1,4 +1,4 @@
-namespace MusicGen.Core
+    namespace MusicGen.Core
 {
     public class MusicDataDto
     {

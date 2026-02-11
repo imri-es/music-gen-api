@@ -32,18 +32,6 @@ public class AudioRenderer
         Console.WriteLine("[Renderer] Rendering Audio using MeltySynth...");
 
         string soundFontPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TimGM6mb.sf2");
-        // if (!File.Exists(soundFontPath))
-        // {
-        //     // Fallback to searching in project root if not in bin
-        //     soundFontPath = Path.Combine(
-        //         Directory
-        //             .GetParent(AppDomain.CurrentDomain.BaseDirectory)
-        //             .Parent.Parent.Parent.FullName,
-        //         "MusicGen.Core",
-        //         "TimGM6mb.sf2"
-        //     );
-        // }
-
         if (!File.Exists(soundFontPath))
         {
             Console.WriteLine($"[ERROR] SoundFont not found at: {soundFontPath}");
@@ -52,14 +40,7 @@ public class AudioRenderer
             );
         }
 
-        // if (new FileInfo(soundFontPath).Length < 1024 * 1024)
-        // {
-        //     throw new InvalidDataException(
-        //         $"SoundFont at {soundFontPath} is too small (<1MB). It is likely corrupt or an HTML file. Please delete it and re-download."
-        //     );
-        // }
 
-        // 1. Load SoundFont and MIDI
         var soundFont = new MeltySynth.SoundFont(soundFontPath);
         var synthesizer = new MeltySynth.Synthesizer(soundFont, SampleRate);
         var midiFile = new MeltySynth.MidiFile(midiPath);
@@ -67,14 +48,6 @@ public class AudioRenderer
 
         sequencer.Play(midiFile, loop: false);
 
-        // 2. Render to float buffer
-        // Calculate duration based on MIDI length
-        // MeltySynth MidiFile doesn't expose duration directly easily without parsing,
-        // but we can just render until sequencer stops?
-        // Actually MidiFileSequencer doesn't have a "HasFinished" property easily exposed in all versions.
-        // Let's assume a reasonable duration or render in blocks until EndOfSong.
-
-        // Estimate duration:
         TimeSpan duration = midiFile.Length;
         int totalSamples = (int)(duration.TotalSeconds * SampleRate) + SampleRate; // +1 sec buffer
 
@@ -83,7 +56,6 @@ public class AudioRenderer
 
         sequencer.Render(left, right);
 
-        // 3. Write to WAV (16-bit)
         using (var writer = new WaveFileWriter(outputPath, new WaveFormat(SampleRate, 16, 2)))
         {
             Console.WriteLine($"totalSamples: {totalSamples}");
@@ -111,7 +83,7 @@ public class AudioRenderer
         Console.WriteLine("1. Requesting Vocals from Gemini...");
 
         // 1. Get Vocals
-        byte[] vocalBytes = await FetchGeminiVocals(lyrics);
+        var (vocalBytes, duration) = await FetchGeminiVocals(lyrics);
 
         if (vocalBytes == null || vocalBytes.Length == 0)
             return;
@@ -130,12 +102,13 @@ public class AudioRenderer
         }
     }
 
-    public async Task<byte[]> FetchGeminiVocals(string text, string voiceName = "Kore")
+    public async Task<(byte[] Audio, double Duration)> FetchGeminiVocals(
+        string text,
+        string voiceName = "Kore"
+    )
     {
         using var client = new HttpClient();
 
-        // We ask Gemini to speak the text.
-        // Note: We prompt it to be "rhythmic" or "dramatic" to fit music better.
         var payload = new
         {
             contents = new[]
@@ -151,7 +124,6 @@ public class AudioRenderer
                     },
                 },
             },
-            // CRITICAL: Request AUDIO output
             generationConfig = new
             {
                 responseModalities = new[] { "AUDIO" },
@@ -173,44 +145,39 @@ public class AudioRenderer
             Console.WriteLine(
                 $"Error: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}"
             );
-            return null;
+            return (Array.Empty<byte>(), 0);
         }
 
         var responseJson = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(responseJson);
 
-        // Parse the Base64 audio from the JSON response
-        // Structure: candidates[0].content.parts[0].inlineData.data
+
         try
         {
-            // ... inside FetchGeminiVocals method ...
-
-            // 1. Extract the Base64 string
-            // (Note: Use the "TryGetProperty" logic from my previous answer if you get JSON errors again)
             string base64Audio = doc
                 .RootElement.GetProperty("candidates")[0]
                 .GetProperty("content")
                 .GetProperty("parts")[0]
-                .GetProperty("inlineData") // or "inline_data" if using snake_case
+                .GetProperty("inlineData")
                 .GetProperty("data")
                 .GetString();
 
-            // 2. Convert to Bytes
             byte[] vocalBytes = Convert.FromBase64String(base64Audio);
 
-            // Wrap raw PCM into WAV
-            using (var writer = new WaveFileWriter("debug_fixed.wav", new WaveFormat(24000, 16, 1))) // Gemini usually outputs 24kHz Mono
+            using var ms = new MemoryStream();
+            using (var writer = new WaveFileWriter(ms, new WaveFormat(24000, 16, 1))) // Gemini usually outputs 24kHz Mono
             {
                 writer.Write(vocalBytes, 0, vocalBytes.Length);
             }
-            Console.WriteLine("[Debug] Wrapped raw PCM into 'debug_fixed.wav'");
 
-            return File.ReadAllBytes("debug_fixed.wav");
+            double duration = (double)vocalBytes.Length / 48000.0;
+
+            return (ms.ToArray(), duration);
         }
         catch (Exception ex)
         {
             Console.WriteLine("Could not parse audio from response: " + ex.Message);
-            return null;
+            return (Array.Empty<byte>(), 0);
         }
     }
 
@@ -224,27 +191,22 @@ public class AudioRenderer
         Console.WriteLine($"[Mixer] Starting audio mix...");
         Console.WriteLine($"[Mixer] Loading Beat: {Path.GetFileName(beatPath)}");
 
-        // 1. Load the Beat (The Master Track)
         using var beatReader = new AudioFileReader(beatPath);
         var beatFormat = beatReader.WaveFormat;
         Console.WriteLine(
             $"[Mixer] Beat Format: {beatFormat.SampleRate}Hz, {beatFormat.Channels}ch, {beatFormat.BitsPerSample}bit"
         );
 
-        // 2. Load the Vocals (The Raw Bytes from Gemini)
         Console.WriteLine($"[Mixer] Loading Vocals ({vocalBytes.Length} bytes)...");
         using var vocalStream = new MemoryStream(vocalBytes);
 
-        // Use StreamMediaFoundationReader to sniff the header (WAV/MP3/PCM)
         using var vocalReader = new StreamMediaFoundationReader(vocalStream);
         Console.WriteLine(
             $"[Mixer] Vocal Raw Format: {vocalReader.WaveFormat.SampleRate}Hz, {vocalReader.WaveFormat.Channels}ch"
         );
 
-        // 3. Convert Vocals to IEEE Float (ISampleProvider)
         ISampleProvider vocalProvider = vocalReader.ToSampleProvider();
 
-        // 4. RESAMPLE Vocals to match the Beat
         if (vocalProvider.WaveFormat.SampleRate != beatReader.WaveFormat.SampleRate)
         {
             Console.WriteLine(
@@ -277,15 +239,12 @@ public class AudioRenderer
             }
         }
 
-        // 6. Create the Mixer
         Console.WriteLine("[Mixer] Initializing Mixing Engine...");
-        var mixer = new MixingSampleProvider(beatReader.WaveFormat); // Master format
+        var mixer = new MixingSampleProvider(beatReader.WaveFormat);
 
-        // Add inputs
         mixer.AddMixerInput((ISampleProvider)beatReader);
         mixer.AddMixerInput(vocalProvider);
 
-        // 7. Render to File
         Console.WriteLine($"[Mixer] Rendering to disk: {outputPath}...");
         try
         {
@@ -301,7 +260,7 @@ public class AudioRenderer
         catch (Exception ex)
         {
             Console.WriteLine($"[Mixer] FATAL ERROR during write: {ex.Message}");
-            throw; // Re-throw so the main loop knows it failed
+            throw;
         }
     }
 
@@ -315,10 +274,8 @@ public class AudioRenderer
                 fs.Seek(0, SeekOrigin.End);
                 long originalLength = fs.Length;
 
-                // Create LIST INFO chunk
                 var listData = new List<byte>();
 
-                // INAM (Title)
                 if (!string.IsNullOrEmpty(metadata.MusicName))
                 {
                     listData.AddRange(Encoding.ASCII.GetBytes("INAM"));
@@ -328,16 +285,14 @@ public class AudioRenderer
                         var l = listData.Count;
                         listData.AddRange(bytes);
                         listData.Add(0);
-                    } // Word align
+                    }
                     else
                         listData.AddRange(bytes);
 
-                    // Insert Size before data
-                    var len = bytes.Length + (bytes.Length % 2); // padded length
+                    var len = bytes.Length + (bytes.Length % 2);
                     listData.InsertRange(listData.Count - len, BitConverter.GetBytes(len));
                 }
 
-                // IART (Artist)
                 if (!string.IsNullOrEmpty(metadata.ArtistName))
                 {
                     listData.AddRange(Encoding.ASCII.GetBytes("IART"));
@@ -349,7 +304,6 @@ public class AudioRenderer
                         listData.Add(0);
                 }
 
-                // IPRD (Album/Product)
                 if (!string.IsNullOrEmpty(metadata.AlbumTitle))
                 {
                     listData.AddRange(Encoding.ASCII.GetBytes("IPRD"));
@@ -363,19 +317,12 @@ public class AudioRenderer
 
                 if (listData.Count > 0)
                 {
-                    // Write LIST chunk
                     listData.InsertRange(0, Encoding.ASCII.GetBytes("INFO"));
                     bw.Write(Encoding.ASCII.GetBytes("LIST"));
                     bw.Write(listData.Count);
                     bw.Write(listData.ToArray());
 
-                    // Update RIFF Size
                     fs.Seek(4, SeekOrigin.Begin);
-                    // RIFF size = FileSize - 8
-                    // We added 'LIST' (4) + Size (4) + Data
-                    // So new size is oldSize + 8 + listData.Count
-
-                    // Or easier: total file size - 8
                     long newFileSize = originalLength + 8 + listData.Count;
                     bw.Write((int)(newFileSize - 8));
 

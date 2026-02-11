@@ -14,10 +14,10 @@ public class SongController : ControllerBase
     }
 
     [HttpPost("generate")]
-    public async Task<IActionResult> Generate(long seed)
+    public async Task<IActionResult> Generate(long seed, string language = "en")
     {
         var generator = new SongGenerator(_config);
-        var result = await generator.GenerateAsync(seed);
-        return Ok(result);
+        var result = await generator.GenerateAsync(seed, language);
+        return Ok(result);  
     }
 }

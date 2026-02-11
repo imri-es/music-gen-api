@@ -25,15 +25,15 @@ public class SongGenerator
         Directory.CreateDirectory(OutputDir);
     }
 
-    public async Task<SongResult> GenerateAsync(long seed)
+    public async Task<SongResult> GenerateAsync(long seed, string language = "en")
     {
         int s32 = ToSeed32(seed);
-        var data = new MusicDataGenerator().GenerateOne(seed);
+        var data = new MusicDataGenerator().GenerateOne(seed, language);
         var (cfg, profile) = BuildConfig(s32);
         var (mel, lyr, img) = await Phase1(seed, s32, cfg, data);
         var paths = ExportMidi(seed, profile, cfg, mel, data);
-        await RenderAudio(seed, cfg, lyr, paths, data, _apiKey);
-        return Result(seed, profile, paths, img);
+        var vocalDuration = await RenderAudio(seed, cfg, lyr, paths, data, _apiKey);
+        return Result(seed, profile, paths, img, lyr, vocalDuration);
     }
 
     static int ToSeed32(long s) => (int)(s ^ (s >> 32));
@@ -99,7 +99,7 @@ public class SongGenerator
         return ($"{b}.mid", $"{b}_beat.wav", $"{b}_song.wav");
     }
 
-    static async Task RenderAudio(
+    static async Task<double> RenderAudio(
         long s,
         SongConfig c,
         object l,
@@ -116,8 +116,13 @@ public class SongGenerator
         var beat = Task.Run(() => r.RenderInstrumental(c, midiPath, beatPath));
         var vox = r.FetchGeminiVocals(Lyrics(l), Voice(s));
         await Task.WhenAll(beat, vox);
-        if (vox.Result?.Length > 0)
-            r.MixAudio(beatPath, vox.Result, finalPath, (dynamic)d);
+
+        var (vocalBytes, duration) = vox.Result;
+
+        if (vocalBytes?.Length > 0)
+            r.MixAudio(beatPath, vocalBytes, finalPath, (dynamic)d);
+
+        return duration;
     }
 
     static string Lyrics(object l)
@@ -135,9 +140,29 @@ public class SongGenerator
         long s,
         GenreProfile p,
         (string midi, string beat, string final) paths,
-        string img
-    ) =>
-        new()
+        string img,
+        object lyricsObj,
+        double vocalDuration
+    )
+    {
+        var allLines = new List<string>();
+        allLines.AddRange(((dynamic)lyricsObj).Verse1);
+        allLines.AddRange(((dynamic)lyricsObj).Chorus);
+        allLines.AddRange(((dynamic)lyricsObj).Outro);
+
+        var lyricLines = new List<LyricLine>();
+        if (allLines.Count > 0 && vocalDuration > 0)
+        {
+            double durationPerLine = vocalDuration / allLines.Count;
+            for (int i = 0; i < allLines.Count; i++)
+            {
+                lyricLines.Add(
+                    new LyricLine { Time = Math.Round(i * durationPerLine, 2), Text = allLines[i] }
+                );
+            }
+        }
+
+        return new()
         {
             Seed = s.ToString(),
             Genre = p.Name,
@@ -146,5 +171,7 @@ public class SongGenerator
             FinalMixPath = $"/songs/{paths.final}",
             ImagePath = $"/songs/{img}",
             ImageUrl = $"https://picsum.photos/seed/{s}/300/300",
+            Lyrics = lyricLines,
         };
+    }
 }
