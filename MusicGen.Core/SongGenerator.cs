@@ -81,7 +81,7 @@ public class SongGenerator
             .GenerateAndSaveImageAsync(
                 s,
                 d.GetType().GetProperty("MusicName")?.GetValue(d)?.ToString()
-                    + d.GetType().GetProperty("ArtistName")?.GetValue(d)?.ToString()
+                    + " " + d.GetType().GetProperty("ArtistName")?.GetValue(d)?.ToString()
                     ?? "Unknown",
                 Path.Combine(OutputDir, $"{s}.jpg")
             )

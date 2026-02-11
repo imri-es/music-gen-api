@@ -27,21 +27,30 @@ public class AudioRenderer
     private const int SampleRate = 44100;
     private const int TicksPerQuarter = 96;
 
+    private static MeltySynth.SoundFont _cachedSoundFont;
+
     public void RenderInstrumental(SongConfig config, string midiPath, string outputPath)
     {
         Console.WriteLine("[Renderer] Rendering Audio using MeltySynth...");
 
-        string soundFontPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "TimGM6mb.sf2");
-        if (!File.Exists(soundFontPath))
+        if (_cachedSoundFont == null)
         {
-            Console.WriteLine($"[ERROR] SoundFont not found at: {soundFontPath}");
-            throw new FileNotFoundException(
-                $"SoundFont not found at {soundFontPath}. Please ensure TimGM6mb.sf2 is downloaded."
+            string soundFontPath = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "TimGM6mb.sf2"
             );
+            if (!File.Exists(soundFontPath))
+            {
+                Console.WriteLine($"[ERROR] SoundFont not found at: {soundFontPath}");
+                throw new FileNotFoundException(
+                    $"SoundFont not found at {soundFontPath}. Please ensure TimGM6mb.sf2 is downloaded."
+                );
+            }
+            Console.WriteLine("[Renderer] Loading SoundFont into memory...");
+            _cachedSoundFont = new MeltySynth.SoundFont(soundFontPath);
         }
 
-        var soundFont = new MeltySynth.SoundFont(soundFontPath);
-        var synthesizer = new MeltySynth.Synthesizer(soundFont, SampleRate);
+        var synthesizer = new MeltySynth.Synthesizer(_cachedSoundFont, SampleRate);
         var midiFile = new MeltySynth.MidiFile(midiPath);
         var sequencer = new MeltySynth.MidiFileSequencer(synthesizer);
 
