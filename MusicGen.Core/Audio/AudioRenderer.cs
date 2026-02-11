@@ -31,8 +31,6 @@ public class AudioRenderer
 
     public void RenderInstrumental(SongConfig config, string midiPath, string outputPath)
     {
-        Console.WriteLine("[Renderer] Rendering Audio using MeltySynth...");
-
         if (_cachedSoundFont == null)
         {
             string soundFontPath = Path.Combine(
@@ -41,12 +39,10 @@ public class AudioRenderer
             );
             if (!File.Exists(soundFontPath))
             {
-                Console.WriteLine($"[ERROR] SoundFont not found at: {soundFontPath}");
                 throw new FileNotFoundException(
                     $"SoundFont not found at {soundFontPath}. Please ensure TimGM6mb.sf2 is downloaded."
                 );
             }
-            Console.WriteLine("[Renderer] Loading SoundFont into memory...");
             _cachedSoundFont = new MeltySynth.SoundFont(soundFontPath);
         }
 
@@ -57,7 +53,7 @@ public class AudioRenderer
         sequencer.Play(midiFile, loop: false);
 
         TimeSpan duration = midiFile.Length;
-        int totalSamples = (int)(duration.TotalSeconds * SampleRate) + SampleRate; // +1 sec buffer
+        int totalSamples = (int)(duration.TotalSeconds * SampleRate) + SampleRate;
 
         float[] left = new float[totalSamples];
         float[] right = new float[totalSamples];
@@ -66,10 +62,8 @@ public class AudioRenderer
 
         using (var writer = new WaveFileWriter(outputPath, new WaveFormat(SampleRate, 16, 2)))
         {
-            Console.WriteLine($"totalSamples: {totalSamples}");
             for (int i = 0; i < totalSamples; i++)
             {
-                // Interleave Stereo
                 short sLeft = (short)(Math.Clamp(left[i], -1f, 1f) * short.MaxValue);
                 short sRight = (short)(Math.Clamp(right[i], -1f, 1f) * short.MaxValue);
 
@@ -79,7 +73,6 @@ public class AudioRenderer
                 writer.WriteByte((byte)((sRight >> 8) & 0xFF));
             }
         }
-        Console.WriteLine($"[Renderer] Beat saved to: {outputPath}");
     }
 
     public async Task GenerateSongWithGeminiVocals(
@@ -88,24 +81,17 @@ public class AudioRenderer
         string outputFilePath
     )
     {
-        Console.WriteLine("1. Requesting Vocals from Gemini...");
-
-        // 1. Get Vocals
         var (vocalBytes, duration) = await FetchGeminiVocals(lyrics);
 
         if (vocalBytes == null || vocalBytes.Length == 0)
             return;
 
-        // 3. If it's a real audio file (MP3/WAV), proceed to mix
-        Console.WriteLine("2. Mixing Vocals with Audio Beat...");
         try
         {
             MixAudio(beatPath, vocalBytes, outputFilePath);
-            Console.WriteLine($"Full song saved to: {outputFilePath}");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Mixing failed: {ex.Message}. Saving raw vocals instead.");
             File.WriteAllBytes(outputFilePath, vocalBytes);
         }
     }
@@ -150,9 +136,6 @@ public class AudioRenderer
 
         if (!response.IsSuccessStatusCode)
         {
-            Console.WriteLine(
-                $"Error: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}"
-            );
             return (Array.Empty<byte>(), 0);
         }
 
@@ -172,7 +155,7 @@ public class AudioRenderer
             byte[] vocalBytes = Convert.FromBase64String(base64Audio);
 
             using var ms = new MemoryStream();
-            using (var writer = new WaveFileWriter(ms, new WaveFormat(24000, 16, 1))) // Gemini usually outputs 24kHz Mono
+            using (var writer = new WaveFileWriter(ms, new WaveFormat(24000, 16, 1)))
             {
                 writer.Write(vocalBytes, 0, vocalBytes.Length);
             }
@@ -181,9 +164,8 @@ public class AudioRenderer
 
             return (ms.ToArray(), duration);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine("Could not parse audio from response: " + ex.Message);
             return (Array.Empty<byte>(), 0);
         }
     }
@@ -195,50 +177,26 @@ public class AudioRenderer
         MusicDataDto? metadata = null
     )
     {
-        Console.WriteLine($"[Mixer] Starting audio mix...");
-        Console.WriteLine($"[Mixer] Loading Beat: {Path.GetFileName(beatPath)}");
-
-        // using var beatReader = new AudioFileReader(beatPath);
         using var beatWaveReader = new WaveFileReader(beatPath);
         var beatReader = beatWaveReader.ToSampleProvider();
         var beatFormat = beatReader.WaveFormat;
-        Console.WriteLine(
-            $"[Mixer] Beat Format: {beatFormat.SampleRate}Hz, {beatFormat.Channels}ch, {beatFormat.BitsPerSample}bit"
-        );
 
-        Console.WriteLine($"[Mixer] Loading Vocals ({vocalBytes.Length} bytes)...");
         using var vocalStream = new MemoryStream(vocalBytes);
 
-        // using var vocalReader = new StreamMediaFoundationReader(vocalStream);
-        using var vocalReader = new WaveFileReader(vocalStream); // Use WaveFileReader for Linux compatibility
-        Console.WriteLine(
-            $"[Mixer] Vocal Raw Format: {vocalReader.WaveFormat.SampleRate}Hz, {vocalReader.WaveFormat.Channels}ch"
-        );
+        using var vocalReader = new WaveFileReader(vocalStream);
 
         ISampleProvider vocalProvider = vocalReader.ToSampleProvider();
 
         if (vocalProvider.WaveFormat.SampleRate != beatReader.WaveFormat.SampleRate)
         {
-            Console.WriteLine(
-                $"[Mixer] Resampling Vocals: {vocalProvider.WaveFormat.SampleRate}Hz -> {beatReader.WaveFormat.SampleRate}Hz"
-            );
             vocalProvider = new WdlResamplingSampleProvider(
                 vocalProvider,
                 beatReader.WaveFormat.SampleRate
             );
         }
-        else
-        {
-            Console.WriteLine("[Mixer] Sample rates match. No resampling needed.");
-        }
 
-        // 5. MATCH CHANNELS (Stereo vs Mono)
         if (vocalProvider.WaveFormat.Channels != beatReader.WaveFormat.Channels)
         {
-            Console.WriteLine(
-                $"[Mixer] Converting Channels: {vocalProvider.WaveFormat.Channels}ch -> {beatReader.WaveFormat.Channels}ch"
-            );
-
             if (vocalProvider.WaveFormat.Channels == 1 && beatReader.WaveFormat.Channels == 2)
             {
                 vocalProvider = vocalProvider.ToStereo();
@@ -249,27 +207,22 @@ public class AudioRenderer
             }
         }
 
-        Console.WriteLine("[Mixer] Initializing Mixing Engine...");
         var mixer = new MixingSampleProvider(beatReader.WaveFormat);
 
         mixer.AddMixerInput((ISampleProvider)beatReader);
         mixer.AddMixerInput(vocalProvider);
 
-        Console.WriteLine($"[Mixer] Rendering to disk: {outputPath}...");
         try
         {
             WaveFileWriter.CreateWaveFile16(outputPath, mixer);
-            Console.WriteLine("[Mixer] Success! File saved.");
 
             if (metadata != null)
             {
-                Console.WriteLine("[Mixer] Adding Metadata to WAV...");
                 AddMetadataToWav(outputPath, metadata);
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[Mixer] FATAL ERROR during write: {ex.Message}");
             throw;
         }
     }
