@@ -80,7 +80,9 @@ public class SongGenerator
         SeededImageService
             .GenerateAndSaveImageAsync(
                 s,
-                d.GetType().GetProperty("AlbumTitle")?.GetValue(d)?.ToString() ?? "Unknown",
+                d.GetType().GetProperty("MusicName")?.GetValue(d)?.ToString()
+                    + d.GetType().GetProperty("ArtistName")?.GetValue(d)?.ToString()
+                    ?? "Unknown",
                 Path.Combine(OutputDir, $"{s}.jpg")
             )
             .ContinueWith(_ => $"{s}.jpg");

@@ -40,7 +40,6 @@ public class AudioRenderer
             );
         }
 
-
         var soundFont = new MeltySynth.SoundFont(soundFontPath);
         var synthesizer = new MeltySynth.Synthesizer(soundFont, SampleRate);
         var midiFile = new MeltySynth.MidiFile(midiPath);
@@ -151,7 +150,6 @@ public class AudioRenderer
         var responseJson = await response.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(responseJson);
 
-
         try
         {
             string base64Audio = doc
@@ -191,7 +189,9 @@ public class AudioRenderer
         Console.WriteLine($"[Mixer] Starting audio mix...");
         Console.WriteLine($"[Mixer] Loading Beat: {Path.GetFileName(beatPath)}");
 
-        using var beatReader = new AudioFileReader(beatPath);
+        // using var beatReader = new AudioFileReader(beatPath);
+        using var beatWaveReader = new WaveFileReader(beatPath);
+        var beatReader = beatWaveReader.ToSampleProvider();
         var beatFormat = beatReader.WaveFormat;
         Console.WriteLine(
             $"[Mixer] Beat Format: {beatFormat.SampleRate}Hz, {beatFormat.Channels}ch, {beatFormat.BitsPerSample}bit"
@@ -200,7 +200,8 @@ public class AudioRenderer
         Console.WriteLine($"[Mixer] Loading Vocals ({vocalBytes.Length} bytes)...");
         using var vocalStream = new MemoryStream(vocalBytes);
 
-        using var vocalReader = new StreamMediaFoundationReader(vocalStream);
+        // using var vocalReader = new StreamMediaFoundationReader(vocalStream);
+        using var vocalReader = new WaveFileReader(vocalStream); // Use WaveFileReader for Linux compatibility
         Console.WriteLine(
             $"[Mixer] Vocal Raw Format: {vocalReader.WaveFormat.SampleRate}Hz, {vocalReader.WaveFormat.Channels}ch"
         );

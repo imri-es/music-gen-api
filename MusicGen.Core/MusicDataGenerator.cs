@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using Bogus;
-using MusicGen.Core.Common; // Assuming this is needed for RandomProvider
-using MusicGen.Core.Theory; // Assuming this is needed for GenreProfiles
+using MusicGen.Core.Common; 
+using MusicGen.Core.Theory;
 
 namespace MusicGen.Core
 {
@@ -33,7 +33,7 @@ namespace MusicGen.Core
                 .RuleFor(m => m.Likes, f => f.Random.Int(1, 10))
                 .RuleFor(
                     m => m.AlbumTitle,
-                    f => f.Lorem.Word() + " " + f.Random.Number(1995, 2026)
+                    f => f.Address.StreetName() + " " + f.Random.Number(1995, 2026)
                 );
 
             var dto = itemFaker.Generate();
