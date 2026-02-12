@@ -60,19 +60,27 @@ public class AudioRenderer
 
         sequencer.Render(left, right);
 
+        Console.WriteLine($"totalSamples: {totalSamples}");
         using (var writer = new WaveFileWriter(outputPath, new WaveFormat(SampleRate, 16, 2)))
         {
+            byte[] buffer = new byte[totalSamples * 4];
+
+            int offset = 0;
+
             for (int i = 0; i < totalSamples; i++)
             {
                 short sLeft = (short)(Math.Clamp(left[i], -1f, 1f) * short.MaxValue);
                 short sRight = (short)(Math.Clamp(right[i], -1f, 1f) * short.MaxValue);
 
-                writer.WriteByte((byte)(sLeft & 0xFF));
-                writer.WriteByte((byte)((sLeft >> 8) & 0xFF));
-                writer.WriteByte((byte)(sRight & 0xFF));
-                writer.WriteByte((byte)((sRight >> 8) & 0xFF));
+                buffer[offset++] = (byte)(sLeft & 0xFF);
+                buffer[offset++] = (byte)((sLeft >> 8) & 0xFF);
+                buffer[offset++] = (byte)(sRight & 0xFF);
+                buffer[offset++] = (byte)((sRight >> 8) & 0xFF);
             }
+
+            writer.Write(buffer, 0, buffer.Length);
         }
+        Console.WriteLine($"Beat saved to: {outputPath}");
     }
 
     public async Task GenerateSongWithGeminiVocals(
