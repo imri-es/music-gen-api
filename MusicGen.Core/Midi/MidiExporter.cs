@@ -2,7 +2,7 @@ using Melanchall.DryWetMidi.Common;
 using Melanchall.DryWetMidi.Core;
 using Melanchall.DryWetMidi.Interaction;
 using MusicGen.Core.Config;
-using MusicGen.Core.Melody;
+using MusicGen.Core.Piano;
 
 namespace MusicGen.Core.Midi;
 
@@ -20,18 +20,15 @@ public class MidiExporter
         var track = new TrackChunk();
         var events = new List<TimedMidiEvent>();
 
-        // Tempo + TimeSignature
         events.Add(new TimedMidiEvent(0, new TimeSignatureEvent(4, 4)));
 
         var tempo = Tempo.FromBeatsPerMinute(config.Bpm);
         events.Add(new TimedMidiEvent(0, new SetTempoEvent(tempo.MicrosecondsPerQuarterNote)));
 
-        // Instrument (Program Change)
         events.Add(
             new TimedMidiEvent(0, new ProgramChangeEvent((SevenBitNumber)(int)config.Instrument))
         );
 
-        // Metadata Events
         if (metadata != null)
         {
             Console.WriteLine(
@@ -58,14 +55,9 @@ public class MidiExporter
                 events.Add(new TimedMidiEvent(0, new TextEvent($"Album: {metadata.AlbumTitle}")));
             }
         }
-        else
-        {
-            Console.WriteLine("[MidiExporter] Metadata is NULL");
-        }
 
         int syllableIndex = 0;
 
-        // Ноты → события
         foreach (var note in melody)
         {
             var noteOn = new NoteOnEvent((SevenBitNumber)note.Pitch, (SevenBitNumber)note.Velocity);

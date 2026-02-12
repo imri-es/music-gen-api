@@ -18,6 +18,6 @@ public class SongController : ControllerBase
     {
         var generator = new SongGenerator(_config);
         var result = await generator.GenerateAsync(seed, language);
-        return Ok(result);  
+        return Ok(result);
     }
 }

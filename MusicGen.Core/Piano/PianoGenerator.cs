@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MusicGen.Core.Config;
-using MusicGen.Core.Melody;
 
 namespace MusicGen.Core.Piano;
+
+public record MelodyNote(int StartTick, int DurationTick, int Pitch, int Velocity = 80);
 
 public class PianoGenerator
 {
@@ -36,31 +37,9 @@ public class PianoGenerator
 
     public List<MelodyNote> Generate(SongConfig config)
     {
-        // Map Key to Scale Root
-        // Simple mapping for now: C=60
-        // If config.Key is "C", we want 60.
-        // If "D", 62, etc.
         int scale = MapKeyToMidiTuple(config.Key);
-
         InitializeMinorGenerator(scale);
         var melody = new List<MelodyNote>();
-
-        // Scale intervals or duration based on Density?
-        // NoteDensity 0.5 is default.
-        // Generator02 probability: randint(0, 8) % 7 != 0.
-        // Outcomes: 0,1,2,3,4,5,6,7,8.
-        // 0%7=0 (Skip), 7%7=0 (Skip). Others Play.
-        // 2 skips out of 9 outcomes => 2/9 chance to skip (~22%).
-        // 7/9 chance to play (~78%).
-
-        // We want NoteDensity=0.5 to map to ~0.78.
-        // We want NoteDensity=1.0 to map to ~1.0.
-        // We want NoteDensity=0.0 to map to ~0.0 (or something low).
-
-        // Linear mapping:
-        // 0.5 * Factor = 0.78 => Factor = 1.56.
-        // Let's use 1.6.
-        // Clamp result to [0.0, 1.0].
 
         double playChance = Math.Clamp(config.NoteDensity * 1.6, 0.2, 1.0);
 
@@ -122,8 +101,6 @@ public class PianoGenerator
 
         for (int i = 0; i < currentNumberOfNotes; i++)
         {
-            // if (_random.Next(0, 9) % 7 != 0) // Original logic
-            // New logic based on Density:
             if (_random.NextDouble() < playChance)
             {
                 int randomNoteIndex = _random.Next(0, 7); // 0 to 6
@@ -137,16 +114,12 @@ public class PianoGenerator
         }
 
         var sequence = _baselines[_random.Next(0, 3)];
-
         double currentIndexLeft = intervalStartTick;
-
         int tripletDuration = TicksPerQuarter / 3;
 
         for (int i = 0; i < 12; i++)
         {
             int noteVal = sequence[i];
-
-            // if (_random.Next(0, 9) % 7 != 0)
             if (_random.NextDouble() < playChance)
             {
                 int pitch = noteVal;

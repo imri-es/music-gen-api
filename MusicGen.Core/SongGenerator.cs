@@ -2,9 +2,7 @@
 using MusicGen.Core.Common;
 using MusicGen.Core.Config;
 using MusicGen.Core.Images;
-using MusicGen.Core.Melody;
 using MusicGen.Core.Midi;
-using MusicGen.Core.Rhythm;
 using MusicGen.Core.Theory;
 
 namespace MusicGen.Core;

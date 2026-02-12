@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Text;
-using System.Text.Json; // strictly for parsing JSON response
+using System.Text.Json;
 using System.Threading.Tasks;
 using MusicGen.Core.Config;
-using MusicGen.Core.Melody;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 
@@ -17,7 +16,7 @@ public class AudioRenderer
     private readonly string _apiKey;
     private readonly string _apiUrl;
 
-    public AudioRenderer(string apiKey = "AIzaSyAvosGtR4Sn2U67EbZcQ-8GSozTN-BF7CE") // Default for fallback, but should be injected
+    public AudioRenderer(string apiKey = "AIzaSyAvosGtR4Sn2U67EbZcQ-8GSozTN-BF7CE") // old api key, doesnt work
     {
         _apiKey = apiKey;
         _apiUrl =

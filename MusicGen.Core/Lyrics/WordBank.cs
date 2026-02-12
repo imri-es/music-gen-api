@@ -249,7 +249,6 @@ public static class WordBank
 
     public static readonly string[] Adjectives =
     {
-        // Appearance
         "silent",
         "broken",
         "endless",
@@ -275,7 +274,6 @@ public static class WordBank
         "cloudy",
         "bloody",
         "pale",
-        // Emotion/State
         "sad",
         "happy",
         "lonely",
@@ -301,7 +299,6 @@ public static class WordBank
         "sweet",
         "bitter",
         "sour",
-        // Abstract
         "empty",
         "full",
         "hollow",
